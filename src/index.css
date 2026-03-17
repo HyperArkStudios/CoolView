@@ -1,0 +1,38 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --font: "SF Mono", "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  font-family: var(--font);
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  position: relative;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.animate-pulse-warning {
+  animation: pulse-warning 1.4s ease-in-out infinite;
+}

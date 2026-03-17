@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Rust
+*.pdb
+
+# Logs
+*.log
