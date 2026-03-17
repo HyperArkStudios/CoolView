@@ -11,15 +11,16 @@ pub struct Config {
 pub struct DisplayConfig {
     pub show_sparkline: bool,
     pub always_on_top: bool,
-    pub position: String, // "top-right" | "top-left" | "bottom-right" | "bottom-left"
-    pub unit: String,     // "C" | "F"
+    pub position: String,
+    pub unit: String,
+    pub launch_at_login: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThresholdConfig {
-    pub warning_temp: f32,
+    pub warning_temp: f32,      // always stored in °C
     pub warning_duration_seconds: u64,
-    pub poll_interval_seconds: u64,
+    pub poll_interval_seconds: u64, // user's chosen base interval
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,7 @@ impl Default for Config {
                 always_on_top: true,
                 position: "top-right".to_string(),
                 unit: "C".to_string(),
+                launch_at_login: false,
             },
             thresholds: ThresholdConfig {
                 warning_temp: 85.0,

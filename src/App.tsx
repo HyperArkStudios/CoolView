@@ -3,20 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { HUD } from "./components/HUD";
 import { Settings } from "./components/Settings";
+import { History } from "./components/History";
 import { Config, TempPayload } from "./types";
 
+type View = "hud" | "settings" | "history";
+
 const DEFAULT_CONFIG: Config = {
-  display: {
-    show_sparkline: false,
-    always_on_top: true,
-    position: "top-right",
-    unit: "C",
-  },
-  thresholds: {
-    warning_temp: 85,
-    warning_duration_seconds: 180,
-    poll_interval_seconds: 30,
-  },
+  display: { show_sparkline: false, always_on_top: true, position: "top-right", unit: "C", launch_at_login: false },
+  thresholds: { warning_temp: 85, warning_duration_seconds: 180, poll_interval_seconds: 30 },
   monitor: { cpu: true, gpu: true, motherboard: true },
 };
 
@@ -25,10 +19,10 @@ async function fetchConfig(): Promise<Config> {
 }
 
 export default function App() {
-  const [temps,        setTemps]        = useState<TempPayload | null>(null);
-  const [config,       setConfig]       = useState<Config>(DEFAULT_CONFIG);
-  const [showSettings, setShowSettings] = useState(false);
-  const [isWarning,    setIsWarning]    = useState(false);
+  const [temps,    setTemps]    = useState<TempPayload | null>(null);
+  const [config,   setConfig]   = useState<Config>(DEFAULT_CONFIG);
+  const [view,     setView]     = useState<View>("hud");
+  const [isWarning,setIsWarning]= useState(false);
 
   useEffect(() => { fetchConfig().then(setConfig).catch(console.error); }, []);
 
@@ -39,9 +33,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<TempPayload>("temp-update", (event) => {
-      setTemps(event.payload);
-      setIsWarning(event.payload.is_warning);
+    const unlisten = listen<TempPayload>("temp-update", (e) => {
+      setTemps(e.payload);
+      setIsWarning(e.payload.is_warning);
     });
     return () => { unlisten.then(f => f()); };
   }, []);
@@ -56,28 +50,32 @@ export default function App() {
     try {
       await invoke("set_config", { newConfig });
       setConfig(newConfig);
-      setShowSettings(false);
-    } catch (err) {
-      console.error("Failed to save config:", err);
-    }
+      setView("hud");
+    } catch (err) { console.error(err); }
   }, []);
 
   return (
-    // Full transparent 240x500 window. HUD fills it all so drag/hover work everywhere.
-    // Settings overlays the same space when open.
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      {/* HUD always rendered so drag/hover work; hidden when a panel is open */}
       <HUD
         temps={temps}
         config={config}
         isWarning={isWarning}
-        onOpenSettings={() => setShowSettings(true)}
-        hidden={showSettings}
+        onOpenSettings={() => setView("settings")}
+        onOpenHistory={() => setView("history")}
       />
-      {showSettings && (
+      {view === "settings" && (
         <Settings
           config={config}
           onSave={handleSaveConfig}
-          onClose={() => setShowSettings(false)}
+          onClose={() => setView("hud")}
+          onOpenHistory={() => setView("history")}
+        />
+      )}
+      {view === "history" && (
+        <History
+          config={config}
+          onClose={() => setView("hud")}
         />
       )}
     </div>

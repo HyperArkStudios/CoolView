@@ -5,7 +5,13 @@ interface SettingsProps {
   config: Config;
   onSave: (config: Config) => void;
   onClose: () => void;
+  onOpenHistory: () => void;
 }
+
+// Convert °C to °F for display
+function cToF(c: number) { return Math.round(c * 9 / 5 + 32); }
+// Convert °F to °C for storage
+function fToC(f: number) { return (f - 32) * 5 / 9; }
 
 const inputStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.07)",
@@ -59,9 +65,9 @@ const btn = (primary?: boolean): React.CSSProperties => ({
   fontFamily: "var(--font)",
 });
 
-export function Settings({ config, onSave, onClose }: SettingsProps) {
+export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsProps) {
   const [draft, setDraft] = useState<Config>(JSON.parse(JSON.stringify(config)));
-
+  const unit = draft.display.unit;
   const isBottom = config.display.position === "bottom-left" ||
                    config.display.position === "bottom-right";
 
@@ -77,17 +83,25 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
   function setDisplay<K extends keyof Config["display"]>(k: K, v: Config["display"][K]) {
     setDraft(d => ({ ...d, display: { ...d.display, [k]: v } }));
   }
-  function setThreshold(k: keyof Config["thresholds"], v: number) {
+  function setThresholdC(k: keyof Config["thresholds"], v: number) {
     setDraft(d => ({ ...d, thresholds: { ...d.thresholds, [k]: v } }));
   }
   function setMonitor(k: keyof Config["monitor"], v: boolean) {
     setDraft(d => ({ ...d, monitor: { ...d.monitor, [k]: v } }));
   }
 
+  // Threshold display value — convert to °F if needed
+  const thresholdDisplay = unit === "F"
+    ? cToF(draft.thresholds.warning_temp)
+    : Math.round(draft.thresholds.warning_temp);
+
+  function handleThresholdChange(displayVal: number) {
+    const inC = unit === "F" ? fToC(displayVal) : displayVal;
+    setThresholdC("warning_temp", inC);
+  }
+
   const panelStyle: React.CSSProperties = {
     position: "absolute",
-    // Mirror the HUD anchor: bottom positions attach panel to bottom of window,
-    // top positions attach to top. Settings always grows toward the centre of screen.
     ...(isBottom ? { bottom: 0 } : { top: 0 }),
     left: 0,
     width: 238,
@@ -105,8 +119,9 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
     boxSizing: "border-box" as const,
   };
 
-  const content = (
-    <>
+  return (
+    <div style={panelStyle}>
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
@@ -120,10 +135,12 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
       <div style={rowStyle}>
         <span>Temp threshold</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input type="number" style={inputStyle} min={50} max={100}
-            value={draft.thresholds.warning_temp}
-            onChange={e => setThreshold("warning_temp", +e.target.value)} />
-          <span style={{ fontSize: 11, opacity: 0.45 }}>°C</span>
+          <input type="number" style={inputStyle}
+            min={unit === "F" ? 122 : 50}
+            max={unit === "F" ? 212 : 100}
+            value={thresholdDisplay}
+            onChange={e => handleThresholdChange(+e.target.value)} />
+          <span style={{ fontSize: 11, opacity: 0.45 }}>°{unit}</span>
         </span>
       </div>
       <div style={rowStyle}>
@@ -131,18 +148,21 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <input type="number" style={inputStyle} min={30} max={3600} step={30}
             value={draft.thresholds.warning_duration_seconds}
-            onChange={e => setThreshold("warning_duration_seconds", +e.target.value)} />
+            onChange={e => setThresholdC("warning_duration_seconds", +e.target.value)} />
           <span style={{ fontSize: 11, opacity: 0.45 }}>sec</span>
         </span>
       </div>
       <div style={rowStyle}>
-        <span>Poll interval</span>
+        <span>Base poll interval</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input type="number" style={inputStyle} min={5} max={300} step={5}
+          <input type="number" style={inputStyle} min={10} max={300} step={5}
             value={draft.thresholds.poll_interval_seconds}
-            onChange={e => setThreshold("poll_interval_seconds", +e.target.value)} />
+            onChange={e => setThresholdC("poll_interval_seconds", +e.target.value)} />
           <span style={{ fontSize: 11, opacity: 0.45 }}>sec</span>
         </span>
+      </div>
+      <div style={{ fontSize: 10, opacity: 0.35, marginBottom: 4, marginTop: -4 }}>
+        Auto-tightens to 20s above 70°, 10s above 80°
       </div>
 
       {/* ── Display ── */}
@@ -156,6 +176,11 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
         <input type="checkbox" checked={draft.display.show_sparkline}
           onChange={e => setDisplay("show_sparkline", e.target.checked)} />
         Show sparkline
+      </label>
+      <label style={checkRow}>
+        <input type="checkbox" checked={draft.display.launch_at_login}
+          onChange={e => setDisplay("launch_at_login", e.target.checked)} />
+        Launch at login
       </label>
       <div style={rowStyle}>
         <span>Position</span>
@@ -180,15 +205,18 @@ export function Settings({ config, onSave, onClose }: SettingsProps) {
       ))}
 
       {/* ── Actions ── */}
-      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: "auto", paddingTop: 8 }}>
-        <span style={{ fontSize: 10, opacity: 0.25, alignSelf: "center", marginRight: "auto" }}>
-          Enter to save · Esc to cancel
-        </span>
+      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: "auto", paddingTop: 10, alignItems: "center" }}>
+        <button
+          style={{ ...btn(), marginRight: "auto", fontSize: 11 }}
+          onClick={onOpenHistory}
+        >📊 History</button>
         <button style={btn()} onClick={onClose}>Cancel</button>
         <button style={btn(true)} onClick={() => onSave(draft)}>Save</button>
       </div>
-    </>
-  );
+      <div style={{ fontSize: 10, opacity: 0.2, textAlign: "center" as const, marginTop: 6 }}>
+        Enter to save · Esc to cancel
+      </div>
 
-  return <div style={panelStyle}>{content}</div>;
+    </div>
+  );
 }
