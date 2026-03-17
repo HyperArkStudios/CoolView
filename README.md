@@ -98,7 +98,6 @@ CoolView is free, open source, and always will be. If it's useful to you:
 
 - ⭐ Star the repo
 - ☕ [Buy me a coffee](https://ko-fi.com/hyperarkstudios)
-- 💖 [GitHub Sponsors](https://github.com/sponsors/HyperArkStudios)
 
 ## License
 
