@@ -106,8 +106,8 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
     left: 0,
     width: 238,
     background: "rgba(14, 14, 20, 0.97)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
+    backdropFilter: undefined,
+    WebkitBackdropFilter: undefined,
     border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: 10,
     padding: "12px 14px",
@@ -140,7 +140,7 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
             max={unit === "F" ? 212 : 100}
             value={thresholdDisplay}
             onChange={e => handleThresholdChange(+e.target.value)} />
-          <span style={{ fontSize: 11, opacity: 0.45 }}>°{unit}</span>
+          <span style={{ fontSize: 11, opacity: 0.45, width: 28, display: "inline-block" }}>°{unit}</span>
         </span>
       </div>
       <div style={rowStyle}>
@@ -149,7 +149,7 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
           <input type="number" style={inputStyle} min={30} max={3600} step={30}
             value={draft.thresholds.warning_duration_seconds}
             onChange={e => setThresholdC("warning_duration_seconds", +e.target.value)} />
-          <span style={{ fontSize: 11, opacity: 0.45 }}>sec</span>
+          <span style={{ fontSize: 11, opacity: 0.45, width: 28, display: "inline-block" }}>sec</span>
         </span>
       </div>
       <div style={rowStyle}>
@@ -158,7 +158,7 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
           <input type="number" style={inputStyle} min={10} max={300} step={5}
             value={draft.thresholds.poll_interval_seconds}
             onChange={e => setThresholdC("poll_interval_seconds", +e.target.value)} />
-          <span style={{ fontSize: 11, opacity: 0.45 }}>sec</span>
+          <span style={{ fontSize: 11, opacity: 0.45, width: 28, display: "inline-block" }}>sec</span>
         </span>
       </div>
       <div style={{ fontSize: 10, opacity: 0.35, marginBottom: 4, marginTop: -4 }}>
@@ -207,9 +207,9 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
       {/* ── Actions ── */}
       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: "auto", paddingTop: 10, alignItems: "center" }}>
         <button
-          style={{ ...btn(), marginRight: "auto", fontSize: 11 }}
+          style={{ ...btn(), marginRight: "auto" }}
           onClick={onOpenHistory}
-        >📊 History</button>
+        >History</button>
         <button style={btn()} onClick={onClose}>Cancel</button>
         <button style={btn(true)} onClick={() => onSave(draft)}>Save</button>
       </div>

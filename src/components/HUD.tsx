@@ -18,17 +18,19 @@ function toDisplay(celsius: number | null | undefined, unit: "C" | "F"): string 
   return `${Math.round(val)}°`;
 }
 
+// Hard pixel offsets only — zero blur so transparent bg never tints the shadow
 const textOutline = [
   "-1px -1px 0 #000", " 1px -1px 0 #000",
   "-1px  1px 0 #000", " 1px  1px 0 #000",
-  " 0    0   5px rgba(0,0,0,0.95)",
-  " 0    0  10px rgba(0,0,0,0.7)",
+  "-2px  0   0 #000", " 2px  0   0 #000",
+  " 0   -2px 0 #000", " 0    2px 0 #000",
 ].join(", ");
 
 const warningOutline = [
-  "-1px -1px 0 rgba(140,0,0,0.9)", " 1px -1px 0 rgba(140,0,0,0.9)",
-  "-1px  1px 0 rgba(140,0,0,0.9)", " 1px  1px 0 rgba(140,0,0,0.9)",
-  " 0    0   8px rgba(200,0,0,1)", " 0    0  16px rgba(255,0,0,0.6)",
+  "-1px -1px 0 #800", " 1px -1px 0 #800",
+  "-1px  1px 0 #800", " 1px  1px 0 #800",
+  "-2px  0   0 #800", " 2px  0   0 #800",
+  " 0   -2px 0 #800", " 0    2px 0 #800",
 ].join(", ");
 
 function tempColor(c: number | null | undefined): string {
@@ -74,13 +76,16 @@ export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }:
     lineHeight: 1, letterSpacing: "-0.02em",
   });
 
+  // Both icons: same font-size, same line-height, same padding — force equal size
   const iconBtn: React.CSSProperties = {
     background: "none", border: "none", cursor: "pointer",
-    fontSize: 13, color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    lineHeight: 1,
+    color: "rgba(255,255,255,0.85)",
     textShadow: textOutline,
-    opacity: hovered ? 1 : 0.25,
+    opacity: hovered ? 1 : 0.6,
     transition: "opacity 0.15s ease",
-    padding: 2, lineHeight: 1,
+    padding: 2,
   };
 
   return (
@@ -100,9 +105,9 @@ export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }:
         gap: 3,
       }}>
 
-        {/* Icon row: history + gear */}
+        {/* Icon row */}
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <button style={iconBtn} onClick={onOpenHistory} title="History">◷</button>
+          <button style={iconBtn} onClick={onOpenHistory} title="History">≡</button>
           <button style={iconBtn} onClick={onOpenSettings} title="Settings">⚙</button>
         </div>
 
@@ -145,7 +150,6 @@ export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }:
           {!temps && (
             <span style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", textShadow: textOutline }}>reading…</span>
           )}
-          {/* Unit toggle */}
           <button onClick={handleUnitClick} title={`Switch to °${unit === "C" ? "F" : "C"}`}
             style={{
               background: "none", border: "none", cursor: "pointer",
@@ -158,7 +162,6 @@ export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }:
             }}>°{unit}</button>
         </div>
 
-        {/* Sparkline */}
         {show_sparkline && temps && temps.history.length >= 2 && (
           <Sparkline data={temps.history} warningThreshold={config.thresholds.warning_temp} width={130} height={20} />
         )}

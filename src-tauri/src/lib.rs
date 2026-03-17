@@ -45,8 +45,6 @@ struct HistoryEntry {
     motherboard: Option<f32>,
 }
 
-// ── Paths ─────────────────────────────────────────────────────────────────────
-
 fn config_path(app: &AppHandle) -> PathBuf {
     app.path().app_config_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
@@ -65,8 +63,6 @@ fn history_path(app: &AppHandle) -> PathBuf {
         .join("history.csv")
 }
 
-// ── Config load/save ──────────────────────────────────────────────────────────
-
 fn load_config(app: &AppHandle) -> Config {
     let path = config_path(app);
     if let Ok(contents) = fs::read_to_string(&path) {
@@ -82,8 +78,6 @@ fn save_config(app: &AppHandle, config: &Config) -> anyhow::Result<()> {
     fs::write(path, toml::to_string_pretty(config)?)?;
     Ok(())
 }
-
-// ── Logging ───────────────────────────────────────────────────────────────────
 
 fn append_log(app: &AppHandle, message: &str) {
     let path = log_path(app);
@@ -107,8 +101,6 @@ fn append_history(app: &AppHandle, cpu: f32, gpu: Option<f32>, motherboard: Opti
     }
 }
 
-// ── Window positioning ────────────────────────────────────────────────────────
-
 fn position_window<R: Runtime>(window: &WebviewWindow<R>, position: &str) {
     if let (Ok(Some(monitor)), Ok(win_size)) = (window.current_monitor(), window.outer_size()) {
         let screen = monitor.size();
@@ -126,10 +118,6 @@ fn position_window<R: Runtime>(window: &WebviewWindow<R>, position: &str) {
     }
 }
 
-// ── Adaptive polling interval ─────────────────────────────────────────────────
-// User's configured interval is the *maximum* (used when cool).
-// Automatically tightens as temps rise.
-
 fn effective_interval(cpu: f32, base: u64) -> u64 {
     if cpu >= 80.0 {
         base.min(10)
@@ -137,10 +125,8 @@ fn effective_interval(cpu: f32, base: u64) -> u64 {
         base.min(20)
     } else {
         base
-    }.max(5) // never faster than 5s regardless
+    }.max(5)
 }
-
-// ── Tauri commands ────────────────────────────────────────────────────────────
 
 #[tauri::command]
 fn get_config(state: tauri::State<SharedState>) -> Config {
@@ -153,11 +139,15 @@ fn set_config(
     state: tauri::State<SharedState>,
     new_config: Config,
 ) -> Result<(), String> {
-    let old_launch = state.lock().unwrap().config.display.launch_at_login;
+    let (old_position, old_launch) = {
+        let s = state.lock().unwrap();
+        (s.config.display.position.clone(), s.config.display.launch_at_login)
+    };
+
     state.lock().unwrap().config = new_config.clone();
     save_config(&app, &new_config).map_err(|e| e.to_string())?;
 
-    // Toggle autolaunch if changed
+    // Only toggle autolaunch if it changed
     if new_config.display.launch_at_login != old_launch {
         use tauri_plugin_autostart::ManagerExt;
         if new_config.display.launch_at_login {
@@ -169,7 +159,11 @@ fn set_config(
 
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_always_on_top(new_config.display.always_on_top);
-        position_window(&window, &new_config.display.position);
+        // Only reposition if the position setting actually changed.
+        // This prevents snapping back to the corner after the user has dragged it.
+        if new_config.display.position != old_position {
+            position_window(&window, &new_config.display.position);
+        }
     }
     Ok(())
 }
@@ -179,17 +173,16 @@ fn get_history(app: AppHandle) -> Vec<HistoryEntry> {
     let path = history_path(&app);
     let Ok(contents) = fs::read_to_string(&path) else { return vec![]; };
 
-    // Cutoff string — ISO format sorts lexicographically so string compare works
     let cutoff = (Local::now() - ChronoDuration::hours(24))
         .format("%Y-%m-%dT%H:%M:%S").to_string();
 
-    contents.lines().skip(1) // skip CSV header
+    contents.lines().skip(1)
         .filter_map(|line| {
             let mut cols = line.splitn(4, ',');
             let ts  = cols.next()?;
             if ts < cutoff.as_str() { return None; }
-            let cpu: f32       = cols.next()?.parse().ok()?;
-            let gpu: Option<f32>         = cols.next().and_then(|s| s.parse().ok());
+            let cpu: f32             = cols.next()?.parse().ok()?;
+            let gpu: Option<f32>     = cols.next().and_then(|s| s.parse().ok());
             let motherboard: Option<f32> = cols.next().and_then(|s| s.parse().ok());
             Some(HistoryEntry { timestamp: ts.to_string(), cpu, gpu, motherboard })
         })
@@ -200,8 +193,6 @@ fn get_history(app: AppHandle) -> Vec<HistoryEntry> {
 fn get_history_path(app: AppHandle) -> String {
     history_path(&app).to_string_lossy().to_string()
 }
-
-// ── Poll loop ─────────────────────────────────────────────────────────────────
 
 fn start_poll_loop(app: AppHandle, state: SharedState) {
     std::thread::spawn(move || {
@@ -214,18 +205,16 @@ fn start_poll_loop(app: AppHandle, state: SharedState) {
                 (s.config.clone(), s.config.monitor.clone())
             };
 
-            // Adaptive interval based on LAST reading (so we react quickly)
             let interval = Duration::from_secs(
                 effective_interval(last_cpu, cfg.thresholds.poll_interval_seconds)
             );
 
-            let reading = reader.read();
+            let reading     = reader.read();
             let cpu         = if monitor_cfg.cpu         { reading.cpu }         else { 0.0 };
             let gpu         = if monitor_cfg.gpu         { reading.gpu }         else { None };
             let motherboard = if monitor_cfg.motherboard { reading.motherboard } else { None };
             last_cpu = cpu;
 
-            // Record to all-time CSV
             append_history(&app, cpu, gpu, motherboard);
 
             let (is_warning, state_changed, history) = {
@@ -274,8 +263,6 @@ fn start_poll_loop(app: AppHandle, state: SharedState) {
     });
 }
 
-// ── App entry ─────────────────────────────────────────────────────────────────
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -292,50 +279,44 @@ pub fn run() {
             }));
             app.manage(state.clone());
 
-            // Position window
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(cfg.display.always_on_top);
                 position_window(&window, &cfg.display.position);
             }
 
-            // System tray
             let quit = MenuItemBuilder::with_id("quit", "Quit CoolView").build(app)?;
             let show = MenuItemBuilder::with_id("show", "Show / Hide").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
             let icon = app.default_window_icon().cloned()
-                .expect("No default icon — ensure icons are configured in tauri.conf.json");
+                .expect("No default icon");
 
             TrayIconBuilder::new()
                 .icon(icon)
                 .menu(&menu)
                 .tooltip("CoolView")
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "quit" => app.exit(0),
-                    "show" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            if w.is_visible().unwrap_or(true) {
-                                let _ = w.hide();
-                            } else {
-                                let _ = w.show();
-                                let _ = w.set_focus();
+                .on_menu_event(|app: &AppHandle, event: tauri::menu::MenuEvent| {
+                    match event.id().as_ref() {
+                        "quit" => app.exit(0),
+                        "show" => {
+                            if let Some(w) = app.get_webview_window("main") {
+                                let visible = w.is_visible().unwrap_or(true);
+                                if visible { let _ = w.hide(); }
+                                else { let _ = w.show(); let _ = w.set_focus(); }
                             }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 })
-                .on_tray_icon_event(|tray, event| {
+                .on_tray_icon_event(|tray: &tauri::tray::TrayIcon, event: TrayIconEvent| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up, ..
                     } = event {
                         let app = tray.app_handle();
                         if let Some(w) = app.get_webview_window("main") {
-                            if w.is_visible().unwrap_or(true) {
-                                let _ = w.hide();
-                            } else {
-                                let _ = w.show();
-                                let _ = w.set_focus();
-                            }
+                            let visible = w.is_visible().unwrap_or(true);
+                            if visible { let _ = w.hide(); }
+                            else { let _ = w.show(); let _ = w.set_focus(); }
                         }
                     }
                 })
