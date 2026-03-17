@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { currentMonitor } from "@tauri-apps/api/window";
 import { HUD } from "./components/HUD";
 import { Settings } from "./components/Settings";
 import { History } from "./components/History";
@@ -32,7 +33,7 @@ export default function App() {
 
     async function checkPosition() {
       const [monitor, pos] = await Promise.all([
-        win.currentMonitor(),
+        currentMonitor(),
         win.outerPosition(),
       ]);
       if (monitor) {
@@ -46,7 +47,7 @@ export default function App() {
     // Re-check every time the window is moved — this is the official Tauri API for this
     let unlisten: (() => void) | undefined;
     win.onMoved(async ({ payload: pos }) => {
-      const monitor = await win.currentMonitor();
+      const monitor = await currentMonitor();
       if (monitor) {
         setIsBottom(pos.y > monitor.size.height / 2);
       }

@@ -41,8 +41,6 @@ function formatTemp(t: number | null, unit: "C" | "F"): string {
   return unit === "F" ? `${Math.round(t * 9 / 5 + 32)}°F` : `${Math.round(t)}°C`;
 }
 
-const textOutline = "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000";
-
 export function History({ config, isBottom, onClose }: HistoryProps) {
   const [entries, setEntries]     = useState<HistoryEntry[]>([]);
   const [filePath, setFilePath]   = useState("");
