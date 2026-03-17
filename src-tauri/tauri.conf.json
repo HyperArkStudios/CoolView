@@ -13,7 +13,7 @@
       {
         "label": "main",
         "title": "CoolView",
-        "width": 240,
+        "width": 280,
         "height": 500,
         "resizable": false,
         "decorations": false,

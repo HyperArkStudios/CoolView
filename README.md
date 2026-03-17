@@ -30,7 +30,7 @@ Download the `.dmg` from [Releases](../../releases).
 
 Or via Homebrew tap:
 ```bash
-brew install growlinghuel/coolview/coolview
+brew install yourusername/coolview/coolview
 ```
 
 ### Windows
@@ -85,7 +85,7 @@ Warning events are logged to:
 - Linux only: `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`
 
 ```bash
-git clone https://github.com/growlinghuel/coolview
+git clone https://github.com/yourusername/coolview
 cd coolview
 npm install
 npm run tauri dev     # development
@@ -97,8 +97,8 @@ npm run tauri build   # production build
 CoolView is free, open source, and always will be. If it's useful to you:
 
 - ⭐ Star the repo
-- ☕ [Buy me a coffee](https://ko-fi.com/growlinghuel)
-- 💖 [GitHub Sponsors](https://github.com/sponsors/growlinghuel)
+- ☕ [Buy me a coffee](https://ko-fi.com/hyperarkstudios)
+- 💖 [GitHub Sponsors](https://github.com/sponsors/HyperArkStudios)
 
 ## License
 

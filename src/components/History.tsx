@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { HistoryEntry, Config } from "../types";
 
 interface HistoryProps {
   config: Config;
+  isBottom: boolean;
   onClose: () => void;
 }
 
@@ -41,15 +43,13 @@ function formatTemp(t: number | null, unit: "C" | "F"): string {
 
 const textOutline = "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000";
 
-export function History({ config, onClose }: HistoryProps) {
+export function History({ config, isBottom, onClose }: HistoryProps) {
   const [entries, setEntries]     = useState<HistoryEntry[]>([]);
   const [filePath, setFilePath]   = useState("");
   const [loading, setLoading]     = useState(true);
   const unit                      = config.display.unit;
   const warningC                  = config.thresholds.warning_temp;
 
-  const isBottom = config.display.position === "bottom-left" ||
-                   config.display.position === "bottom-right";
 
   useEffect(() => {
     Promise.all([
@@ -90,7 +90,7 @@ export function History({ config, onClose }: HistoryProps) {
       position: "absolute",
       ...(isBottom ? { bottom: 0 } : { top: 0 }),
       left: 0,
-      width: 238,
+      width: 278,
       background: "rgba(14,14,20,0.97)",
       backdropFilter: undefined,
       WebkitBackdropFilter: undefined,
@@ -106,8 +106,15 @@ export function History({ config, onClose }: HistoryProps) {
       boxSizing: "border-box" as const,
     }}>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {/* Header — drag handle */}
+      <div
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" }}
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).tagName.toLowerCase() === "button") return;
+          e.preventDefault();
+          getCurrentWebviewWindow().startDragging();
+        }}
+      >
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
           📊 Last 24 Hours
         </span>

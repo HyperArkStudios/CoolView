@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { HUD } from "./components/HUD";
 import { Settings } from "./components/Settings";
 import { History } from "./components/History";
@@ -19,10 +20,40 @@ async function fetchConfig(): Promise<Config> {
 }
 
 export default function App() {
-  const [temps,    setTemps]    = useState<TempPayload | null>(null);
-  const [config,   setConfig]   = useState<Config>(DEFAULT_CONFIG);
-  const [view,     setView]     = useState<View>("hud");
-  const [isWarning,setIsWarning]= useState(false);
+  const [temps,        setTemps]        = useState<TempPayload | null>(null);
+  const [config,       setConfig]       = useState<Config>(DEFAULT_CONFIG);
+  const [view,         setView]         = useState<View>("hud");
+  const [isWarning,    setIsWarning]    = useState(false);
+  const [isBottom,     setIsBottom]     = useState(false);
+
+  // Single source of truth for isBottom — driven by actual window position via onMoved
+  useEffect(() => {
+    const win = getCurrentWebviewWindow();
+
+    async function checkPosition() {
+      const [monitor, pos] = await Promise.all([
+        win.currentMonitor(),
+        win.outerPosition(),
+      ]);
+      if (monitor) {
+        setIsBottom(pos.y > monitor.size.height / 2);
+      }
+    }
+
+    // Check on mount
+    checkPosition().catch(console.error);
+
+    // Re-check every time the window is moved — this is the official Tauri API for this
+    let unlisten: (() => void) | undefined;
+    win.onMoved(async ({ payload: pos }) => {
+      const monitor = await win.currentMonitor();
+      if (monitor) {
+        setIsBottom(pos.y > monitor.size.height / 2);
+      }
+    }).then(fn => { unlisten = fn; }).catch(console.error);
+
+    return () => { unlisten?.(); };
+  }, []);
 
   useEffect(() => { fetchConfig().then(setConfig).catch(console.error); }, []);
 
@@ -56,17 +87,18 @@ export default function App() {
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      {/* HUD always rendered so drag/hover work; hidden when a panel is open */}
       <HUD
         temps={temps}
         config={config}
         isWarning={isWarning}
+        isBottom={isBottom}
         onOpenSettings={() => setView("settings")}
         onOpenHistory={() => setView("history")}
       />
       {view === "settings" && (
         <Settings
           config={config}
+          isBottom={isBottom}
           onSave={handleSaveConfig}
           onClose={() => setView("hud")}
           onOpenHistory={() => setView("history")}
@@ -75,6 +107,7 @@ export default function App() {
       {view === "history" && (
         <History
           config={config}
+          isBottom={isBottom}
           onClose={() => setView("hud")}
         />
       )}

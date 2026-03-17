@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Config } from "../types";
 
 interface SettingsProps {
   config: Config;
+  isBottom: boolean;
   onSave: (config: Config) => void;
   onClose: () => void;
   onOpenHistory: () => void;
@@ -65,11 +67,9 @@ const btn = (primary?: boolean): React.CSSProperties => ({
   fontFamily: "var(--font)",
 });
 
-export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsProps) {
+export function Settings({ config, isBottom, onSave, onClose, onOpenHistory }: SettingsProps) {
   const [draft, setDraft] = useState<Config>(JSON.parse(JSON.stringify(config)));
   const unit = draft.display.unit;
-  const isBottom = config.display.position === "bottom-left" ||
-                   config.display.position === "bottom-right";
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -104,7 +104,7 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
     position: "absolute",
     ...(isBottom ? { bottom: 0 } : { top: 0 }),
     left: 0,
-    width: 238,
+    width: 278,
     background: "rgba(14, 14, 20, 0.97)",
     backdropFilter: undefined,
     WebkitBackdropFilter: undefined,
@@ -122,8 +122,15 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
   return (
     <div style={panelStyle}>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {/* Header — drag handle */}
+      <div
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" }}
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).tagName.toLowerCase() === "button") return;
+          e.preventDefault();
+          getCurrentWebviewWindow().startDragging();
+        }}
+      >
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
           ⚙ Settings
         </span>
@@ -203,6 +210,9 @@ export function Settings({ config, onSave, onClose, onOpenHistory }: SettingsPro
           {s === "motherboard" ? "Motherboard" : s.toUpperCase()}
         </label>
       ))}
+      <div style={{ fontSize: 10, opacity: 0.3, marginTop: -4, marginBottom: 4 }}>
+        GPU temp requires kernel ≥ 6.12 or discrete GPU drivers
+      </div>
 
       {/* ── Actions ── */}
       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: "auto", paddingTop: 10, alignItems: "center" }}>

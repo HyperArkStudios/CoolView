@@ -8,6 +8,7 @@ interface HUDProps {
   temps: TempPayload | null;
   config: Config;
   isWarning: boolean;
+  isBottom: boolean;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
 }
@@ -40,10 +41,9 @@ function tempColor(c: number | null | undefined): string {
   return "#ffffff";
 }
 
-export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }: HUDProps) {
+export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpenHistory }: HUDProps) {
   const [hovered, setHovered] = useState(false);
-  const { unit, show_sparkline, position } = config.display;
-  const isBottom = position === "bottom-left" || position === "bottom-right";
+  const { unit, show_sparkline } = config.display;
 
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return;
@@ -90,20 +90,26 @@ export function HUD({ temps, config, isWarning, onOpenSettings, onOpenHistory }:
 
   return (
     <div
-      style={{ position: "absolute", inset: 0, background: "transparent", cursor: "grab", userSelect: "none", WebkitUserSelect: "none" }}
-      onMouseDown={handleMouseDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      style={{ position: "absolute", inset: 0, background: "transparent", pointerEvents: "none" }}
     >
-      <div style={{
-        position: "absolute",
-        ...(isBottom ? { bottom: 8 } : { top: 8 }),
-        right: 10,
-        display: "flex",
-        flexDirection: isBottom ? "column-reverse" : "column",
-        alignItems: "flex-end",
-        gap: 3,
-      }}>
+      <div
+        style={{
+          position: "absolute",
+          ...(isBottom ? { bottom: 8 } : { top: 8 }),
+          right: 10,
+          display: "flex",
+          flexDirection: isBottom ? "column-reverse" : "column",
+          alignItems: "flex-end",
+          gap: 3,
+          pointerEvents: "all",
+          cursor: "grab",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
 
         {/* Icon row */}
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>

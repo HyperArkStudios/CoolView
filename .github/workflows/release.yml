@@ -84,7 +84,7 @@ jobs:
             > **Linux:** May require `lm-sensors` (`sudo apt install lm-sensors && sudo sensors-detect`).
 
             ---
-            ☕ [Buy me a coffee](https://ko-fi.com/growlinghuel) · 💖 [GitHub Sponsors](https://github.com/sponsors/growlinghuel)
+            ☕ [Buy me a coffee](https://ko-fi.com/hyperarkstudios) · 💖 [GitHub Sponsors](https://github.com/sponsors/HyperArkStudios)
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
           args: ${{ matrix.args }}
