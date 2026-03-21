@@ -182,10 +182,19 @@ fn set_config(
 
 #[tauri::command]
 async fn open_panel(app: AppHandle, label: String) {
-    // If same panel already open, just focus it
+    // If same panel already open with same label, just focus it
+    // If different label, close and reopen
     if let Some(existing) = app.get_webview_window("panel") {
-        let _ = existing.set_focus();
-        return;
+        // Check current URL to see if it's the same panel
+        let current_url = existing.url().map(|u| u.to_string()).unwrap_or_default();
+        if current_url.contains(&label) {
+            let _ = existing.set_focus();
+            return;
+        }
+        // Different panel requested — close current first
+        let _ = existing.close();
+        // Wait for close to complete
+        std::thread::sleep(Duration::from_millis(150));
     }
 
     let hud = match app.get_webview_window("main") {

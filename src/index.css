@@ -45,3 +45,10 @@ body.panel-window {
   background: rgb(14,14,20) !important;
   border: none !important;
 }
+
+/* Remove browser default button styling globally */
+button {
+  text-decoration: none !important;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}

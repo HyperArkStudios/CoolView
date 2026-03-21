@@ -19,7 +19,6 @@ function toDisplay(celsius: number | null | undefined, unit: "C" | "F"): string 
   return `${Math.round(val)}°`;
 }
 
-// Hard pixel offsets only — zero blur so transparent bg never tints the shadow
 const textOutline = [
   "-1px -1px 0 #000", " 1px -1px 0 #000",
   "-1px  1px 0 #000", " 1px  1px 0 #000",
@@ -76,11 +75,9 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
     lineHeight: 1, letterSpacing: "-0.02em",
   });
 
-  // Both icons: same font-size, same line-height, same padding — force equal size
   const iconBtn: React.CSSProperties = {
     background: "none", border: "none", cursor: "pointer",
-    fontSize: 13,
-    lineHeight: 1,
+    fontSize: 13, lineHeight: 1,
     color: "rgba(255,255,255,0.85)",
     textShadow: textOutline,
     opacity: hovered ? 1 : 0.6,
@@ -90,8 +87,9 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
 
   return (
     <div
-      style={{ position: "absolute", inset: 0, background: "transparent", pointerEvents: "none" }}
+      style={{ position: "absolute", inset: 0, background: "transparent", pointerEvents: "none", overflow: "hidden" }}
     >
+      {/* Temp content — anchored top-right or bottom-right */}
       <div
         style={{
           position: "absolute",
@@ -110,9 +108,8 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-
-        {/* Icon row */}
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        {/* Icon row — top of right content */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center", alignSelf: "flex-end" }}>
           <button style={iconBtn} onClick={onOpenHistory} title="History">≡</button>
           <button style={iconBtn} onClick={onOpenSettings} title="Settings">⚙</button>
         </div>
@@ -163,8 +160,8 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
               color: hovered ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)",
               textShadow: textOutline, letterSpacing: "0.1em",
               textTransform: "uppercase" as const,
-              textDecoration: hovered ? "underline" : "none",
-              transition: "color 0.15s, text-decoration 0.15s",
+              textDecoration: "none",
+              transition: "color 0.15s",
             }}>°{unit}</button>
         </div>
 
@@ -172,6 +169,8 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
           <Sparkline data={temps.history} warningThreshold={config.thresholds.warning_temp} width={130} height={20} />
         )}
       </div>
+
+
     </div>
   );
 }
