@@ -182,7 +182,12 @@ fn set_config(
 
 #[tauri::command]
 async fn open_panel(app: AppHandle, label: String) {
-    // If any panel already open, close it and wait briefly
+    // Validate label to prevent eval injection
+    if label != "settings" && label != "history" {
+        return;
+    }
+
+    // If any panel already open...
     if let Some(existing) = app.get_webview_window("panel") {
         let current_url = existing.url()
             .map(|u| u.to_string())
@@ -192,9 +197,12 @@ async fn open_panel(app: AppHandle, label: String) {
             let _ = existing.set_focus();
             return;
         }
-        // Different panel — close and wait
-        let _ = existing.close();
-        std::thread::sleep(Duration::from_millis(300));
+        // Different panel — navigate in-place to avoid GTK window lifecycle race
+        // (close + recreate causes BadImplementation via freeze/thaw counter mismatch)
+        let js = format!("window.location.hash = '{}'; window.location.reload();", label);
+        let _ = existing.eval(&js);
+        let _ = existing.set_focus();
+        return;
     }
 
     let hud = match app.get_webview_window("main") {

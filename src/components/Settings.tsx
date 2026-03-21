@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { useState, useEffect } from "react";
 import { Config } from "../types";
 
 interface SettingsProps {
@@ -69,11 +68,6 @@ const btn = (primary?: boolean): React.CSSProperties => ({
 
 export function Settings({ config, isBottom, onSave, onClose, onOpenHistory }: SettingsProps) {
 
-  // Resize window to fit content after render
-  useEffect(() => {
-    const win = getCurrentWebviewWindow();
-  });
-
   const [draft, setDraft] = useState<Config>(JSON.parse(JSON.stringify(config)));
 
   // Re-sync draft when config loads from backend (panel window async fetch)
@@ -133,15 +127,8 @@ export function Settings({ config, isBottom, onSave, onClose, onOpenHistory }: S
   return (
     <div style={panelStyle}>
 
-      {/* Header — drag handle */}
-      <div
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" }}
-        onMouseDown={(e) => {
-          if ((e.target as HTMLElement).tagName.toLowerCase() === "button") return;
-          e.preventDefault();
-          getCurrentWebviewWindow().startDragging();
-        }}
-      >
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
           ⚙ Settings
         </span>

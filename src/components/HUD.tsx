@@ -52,12 +52,9 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
   }
   const { unit, show_sparkline } = config.display;
 
-  function handleMouseDown(e: React.MouseEvent) {
-    if (e.button !== 0) return;
-    const tag = (e.target as HTMLElement).tagName.toLowerCase();
-    if (tag === "button" || tag === "select" || tag === "input") return;
-    e.preventDefault();
-    getCurrentWebviewWindow().startDragging();
+  function handleMouseDown(_e: React.MouseEvent) {
+    // startDragging() removed — XGrabPointer corrupts GTK freeze/thaw counter
+    // causing X11 BadImplementation crash after ~90s. Use Settings > Position.
   }
 
   async function handleUnitClick(e: React.MouseEvent) {
@@ -108,9 +105,18 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
           alignItems: "flex-end",
           gap: 3,
           pointerEvents: "all",
-          cursor: "grab",
+          cursor: "default",
           userSelect: "none",
           WebkitUserSelect: "none",
+          // BUG2 fix: force GPU composite layer for this whole content area so
+          // WebKit's dirty-rect partial-repaint can't skip the clear step.
+          // The near-zero background (0.001 alpha) makes WebKit paint a background
+          // before text, which zeroes out ghost pixels from previous frames.
+          // Without it, transparent regions accumulate old text via Porter-Duff
+          // "over" without clearing — causing 90-120s ghost artifacts on ARGB surfaces.
+          willChange: "transform",
+          transform: "translateZ(0)",
+          background: "rgba(0,0,0,0.001)",
         }}
         onMouseDown={handleMouseDown}
         onMouseEnter={() => setHovered(true)}
@@ -133,7 +139,7 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
         )}
 
         {/* Temp readings */}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, willChange: "transform", transform: "translateZ(0)" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
           {config.monitor.cpu && (
             <div style={{ textAlign: "center" as const }}>
               <div style={labelStyle}>CPU</div>
