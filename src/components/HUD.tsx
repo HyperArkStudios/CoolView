@@ -73,6 +73,7 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
     color: tempColor(c),
     textShadow: isWarning ? warningOutline : textOutline,
     lineHeight: 1, letterSpacing: "-0.02em",
+    willChange: "transform",
   });
 
   const iconBtn: React.CSSProperties = {
