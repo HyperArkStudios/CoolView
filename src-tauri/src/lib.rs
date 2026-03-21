@@ -227,7 +227,6 @@ async fn open_panel(app: AppHandle, label: String) {
     )
     .position(pos.x as f64, spawn_y)
     .inner_size(panel_w, panel_h)
-    .decorations(false)
     .transparent(false)
     .resizable(false)
     .build();

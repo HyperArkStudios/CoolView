@@ -110,6 +110,10 @@ export default function App() {
           config={config}
           isBottom={false}
           onClose={() => getCurrentWebviewWindow().close()}
+          onOpenSettings={() => {
+            window.location.hash = "settings";
+            window.location.reload();
+          }}
         />
       )}
     </div>
