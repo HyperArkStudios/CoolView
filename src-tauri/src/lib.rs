@@ -183,6 +183,24 @@ fn set_config(
             let _ = w.set_always_on_top(aot);
             if pos_changed {
                 position_window(&w, &new_pos);
+                // Reposition panel if visible
+                if let Some(panel) = app_h.get_webview_window("panel") {
+                    if panel.is_visible().unwrap_or(false) {
+                        if let (Ok(pos), Ok(size)) = (w.outer_position(), w.outer_size()) {
+                            let panel_h: i32 = 480;
+                            let spawn_y = if let Ok(Some(mon)) = w.current_monitor() {
+                                if pos.y > mon.size().height as i32 / 2 {
+                                    pos.y - panel_h - 8
+                                } else {
+                                    pos.y + size.height as i32 + 8
+                                }
+                            } else {
+                                pos.y + size.height as i32 + 8
+                            };
+                            let _ = panel.set_position(PhysicalPosition::new(pos.x, spawn_y.max(0)));
+                        }
+                    }
+                }
             }
         }
     });
@@ -429,7 +447,6 @@ pub fn run() {
                             tauri::WebviewUrl::App("index.html#settings".into()),
                         )
                         .inner_size(320.0, 480.0)
-                        .transparent(false)
                         .decorations(false)
                         .resizable(false)
                         .visible(false)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { HistoryEntry, Config } from "../types";
 
 interface HistoryProps {
@@ -105,7 +106,8 @@ export function History({ config, isBottom, onClose, onOpenSettings }: HistoryPr
     }}>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none" as const }}
+        onMouseDown={(e) => { if ((e.target as HTMLElement).closest("button")) return; e.preventDefault(); getCurrentWebviewWindow().startDragging(); }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
           📊 Last 24 Hours
         </span>
