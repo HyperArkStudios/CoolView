@@ -117,7 +117,9 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
           // "over" without clearing — causing 90-120s ghost artifacts on ARGB surfaces.
           willChange: "transform",
           transform: "translateZ(0)",
-          background: "rgba(0,0,0,0.001)",
+          background: "rgb(14,14,20)",
+          borderRadius: 10,
+          padding: "4px 8px",
         }}
         onMouseDown={handleMouseDown}
         onMouseEnter={() => setHovered(true)}
