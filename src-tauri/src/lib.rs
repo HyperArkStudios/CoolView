@@ -406,23 +406,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Defer position + always_on_top until GTK event loop is running
-            // to avoid corrupting the GDK freeze counter (causes BadImplementation crash)
-            {
-                let handle = app.handle().clone();
-                let init_pos = cfg.display.position.clone();
-                let init_aot = cfg.display.always_on_top;
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                    let handle2 = handle.clone();
-                    let _ = handle.run_on_main_thread(move || {
-                        if let Some(w) = handle2.get_webview_window("main") {
-                            let _ = w.set_always_on_top(init_aot);
-                            position_window(&w, &init_pos);
-                        }
-                    });
-                });
-            }
+
             start_poll_loop(app.handle().clone(), state);
             Ok(())
         })

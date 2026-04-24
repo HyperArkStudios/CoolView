@@ -18,10 +18,12 @@
         "resizable": false,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": false,
+        "alwaysOnTop": true,
         "skipTaskbar": false,
         "shadow": false,
-        "visible": true
+        "visible": true,
+        "x": 1400,
+        "y": 12
       }
     ],
     "security": {

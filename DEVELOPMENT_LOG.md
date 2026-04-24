@@ -25,42 +25,32 @@ ghost bug. See GHOST_BUG_DEBUG_LOG.md for full history.
 
 ## Known Bugs & Status
 
-### 1. HUD Ghost (OPEN)
+### 1. HUD Ghost (RESOLVED v0.1.5)
 **Symptom:** When temps first arrive, "reading…" text persists ghosted beneath
 the actual temperature numbers in the same pixel region.
 
-**Root cause:** Identical mechanism to the panel ghost bug. WebKit2GTK on X11
-does partial dirty-rect repaints. When React replaces `reading…` with temp
-numbers, only the changed pixels are repainted. The old `reading…` pixels remain
-in the ARGB surface outside the dirty rect. X11 compositor surfaces them.
+**Fix applied:** Added `background: "rgb(14,14,20)"` (fully opaque) to the HUD
+content pill container. This forces WebKit to paint a background before text,
+zeroing out ghost pixels from previous frames. The pill now has a solid dark
+background — no transparent ARGB surface in the content area.
 
-**What won't fix it:**
-- CSS isolation, z-index, opacity changes (above WebKit compositor layer)
-- Window height reduction (ghost is in SAME region as content, not below)
-- flushSync (tried — does not work, React 18 scheduler not the cause)
-- set_background_color (causes white or black rectangles)
+**Why it works:** WebKit2GTK's ARGB surface uses Porter-Duff "over" compositing.
+Transparent pixels accumulate old content. An opaque background forces a clear
+step before each paint, eliminating accumulation.
 
-**What might fix it:**
-- Force full window repaint on first temp update (via JS resize event trick or
-  Tauri window eval)
-- CSS `will-change: transform` on the temp container to promote to own layer
-- Replace `reading…` with same-size invisible placeholder so no layout shift
-  occurs and dirty rect covers the full text area
+### 2. Panel Switching (FIXED)
+Panel navigates in-place via `eval("window.location.hash = '...'; reload()")`.
+No GTK window lifecycle operations. No race condition.
 
-**Not yet tried:**
-- `window.getComputedStyle(el).opacity` trick to force style recalc
-- Animating opacity 0→1 on first render (forces full layer repaint)
+### 3. Settings showing defaults briefly (FIXED)
+`useEffect(() => setDraft(config), [config])` in Settings.tsx re-syncs draft
+when async `get_config` resolves.
 
-### 2. Panel Switching Crash (PARTIALLY FIXED)
-**Symptom:** Clicking Settings while History open (or vice versa) crashed app.
-**Fix applied:** 150ms delay between close and reopen of panel window.
-**Status:** Less frequent but may still occur under load. Needs proper fix —
-should wait for close event rather than arbitrary sleep.
+### 4. Config not reloading in HUD after save (FIXED)
+`app.emit()` instead of `w.emit()` in set_config Rust command.
 
-### 3. Underline on °C button (OPEN)
-**Symptom:** Browser default underline appears on unit toggle button.
-**Fix attempted:** `textDecoration: "none"` in inline style — insufficient.
-**Proper fix:** Global `button { text-decoration: none }` in index.css.
+### 5. Double HUD on startup (FIXED v0.1.5)
+See critical fix section below.
 
 ---
 
@@ -71,10 +61,15 @@ should wait for close event rather than arbitrary sleep.
 - Required for HUD to float over desktop without visible border
 - Source of all compositor ghosting issues on Linux X11
 
+### HUD Content Pill
+- Dark opaque background `rgb(14,14,20)` on content container only
+- Window remains transparent — desktop shows through around the pill
+- Eliminates ghost rendering without losing the floating aesthetic
+- Works identically on all three platforms
+
 ### Panel Window NOT Transparent
-- Deliberately set `transparent: false` on panel window
+- `transparent: false` on panel window
 - Eliminates all ghost/compositor issues for Settings and History
-- Means panel has solid background — acceptable UX tradeoff
 
 ### Sensor Reading (Linux)
 - Uses `sysinfo` crate reading from `/sys/class/hwmon/`
@@ -88,6 +83,12 @@ should wait for close event rather than arbitrary sleep.
 - Above 70°C: max 20s
 - Above 80°C: max 10s
 - Never faster than 5s
+
+### Initial Window Position
+- Set statically in tauri.conf.json (`x: 1400, y: 12`)
+- Do NOT call position_window() at startup — causes GTK freeze corruption
+- Users can drag HUD to any position; returns to default on next launch
+- Position persistence is a known limitation (see below)
 
 ---
 
@@ -110,7 +111,7 @@ src-tauri/
     config.rs          — Config struct (TOML)
     sensors.rs         — Cross-platform temp reading via sysinfo
     monitor.rs         — Sustained warning state machine
-    main.rs            — Entry point
+    main.rs            — Entry point (calls XInitThreads() on Linux)
   capabilities/
     default.json       — Tauri 2 permissions (MUST include "panel" window)
   tauri.conf.json      — Window config, bundle settings
@@ -119,6 +120,7 @@ src-tauri/
 GHOST_BUG_DEBUG_LOG.md  — Detailed history of compositor ghost bug
 DEVELOPMENT_LOG.md      — This file
 SPEC.md                 — Original product specification
+TLDR.md                 — Quick context summary for new AI sessions
 ```
 
 ---
@@ -152,11 +154,9 @@ SPEC.md                 — Original product specification
 
 ### macOS
 - Unsigned — Gatekeeper warning expected, right-click → Open
-- Homebrew tap planned: `brew install hyperarkstudios/coolview/coolview`
 
 ### Windows
 - Unsigned — SmartScreen warning expected
-- EV certificate (~$300/yr) needed to suppress — not planned for now
 
 ---
 
@@ -167,7 +167,9 @@ SPEC.md                 — Original product specification
 | v0.1.0-alpha | First build attempt — had icons/Cargo issues |
 | v0.1.1-alpha | Fixed TypeScript errors, proper build |
 | v0.1.2-alpha | Crash fixes, u32 overflow, tray state |
-| v0.1.3 (planned) | Two-window architecture, ghost fix |
+| v0.1.3-alpha | Two-window architecture, hide_panel command |
+| v0.1.4-alpha | Button layout, getCurrentWebviewWindow import fix |
+| v0.1.5-alpha | CRITICAL: double HUD fix, position via tauri.conf.json |
 
 ---
 
@@ -177,119 +179,116 @@ SPEC.md                 — Original product specification
 
 ---
 
-## Two-Window Architecture (current branch: two-window)
+## CRITICAL RULES — DO NOT VIOLATE
 
-### Why
-Single-window approach had an unresolvable X11/WebKit2GTK compositor ghost bug
-where clicking buttons inside panels caused ghost HUD pixels to show through
-panel backgrounds. After 3 days and ~15 attempted fixes (CSS, Rust, React),
-switched to two-window architecture where panels are separate OS windows.
+1. **Never call position_window(), set_position(), current_monitor(), or
+   outer_size() during app startup or from any deferred block.**
+   These touch GTK's freeze/thaw cycle and corrupt the counter → double window.
+   All window geometry MUST be set via tauri.conf.json at creation time.
 
-### How it works
-- `main` window: HUD only. Transparent, 240×64px. Always-on-top.
-- `panel` window: Created on demand by `open_panel` Rust command.
-  NOT transparent. Positioned above/below HUD. No always-on-top, no skip-taskbar
-  (these caused X11 BadImplementation crashes).
-- URL hash routing: `index.html` = HUD, `index.html#settings` = Settings panel,
-  `index.html#history` = History panel
+2. **All GTK window operations from background threads or command handlers
+   MUST use `app.run_on_main_thread()`.**
+   This includes: set_always_on_top, set_focus, WebviewWindowBuilder::build().
 
-### Current Issues
+3. **Do NOT use `on_window_event`** — causes immediate X11 crash.
 
-**1. X11 BadImplementation crash (OPEN)**
-Intermittent crash after extended use. Likely caused by `startDragging()` in
-panel windows interfering with GTK freeze/thaw cycle. See GHOST_BUG_DEBUG_LOG.md.
-**Recommended fix: remove startDragging() from panel windows.**
+4. **Do NOT use `set_background_color`** — causes white or black rectangles.
 
-**2. HUD ghost (PARTIALLY FIXED)**
-Old temp values ghost under new ones for 90-120 seconds. `willChange: "transform"`
-+ `translateZ(0)` partially helps. Root cause: WebKit2GTK ARGB dirty-rect
-partial repaint on transparent window. Full fix not yet found.
+5. **Do NOT use `always_on_top(true)` or `skip_taskbar(true)` on panel window**
+   at runtime — causes X11 BadImplementation crash.
 
-**3. Settings showing defaults briefly (FIXED)**
-Panel window creates own React instance with DEFAULT_CONFIG. Fixed by adding
-`useEffect(() => setDraft(config), [config])` in Settings.tsx so draft
-re-syncs when async `get_config` resolves.
+6. **`w.emit()` targets one window only** — use `app.emit()` for cross-window events.
 
-**4. Config not reloading in HUD after save (FIXED)**  
-`w.emit()` targets only that window's JS. Changed to `app.emit()` in set_config
-Rust command so HUD window's `listen("config-updated")` handler fires correctly.
+7. **Panel window MUST be listed in `capabilities/default.json` windows array.**
 
-**5. Panel switching crash (PARTIALLY FIXED)**
-Close+reopen race condition. Added 600ms cooldown debounce in HUD buttons.
-`on_window_event` approach caused immediate crash — do not use.
+8. **`useState` init from prop only runs once** — use `useEffect` to sync with
+   async data.
 
-### Key Rules Learned (DO NOT VIOLATE)
-- Do NOT use `on_window_event` — causes immediate X11 crash
-- Do NOT use `set_background_color` — causes white rectangle
-- Do NOT use `always_on_top(true)` or `skip_taskbar(true)` on panel window
-- Do NOT use `decorations(false)` alone if it triggers ChangeWindowAttributes
-- `w.emit()` targets one window only — use `app.emit()` for cross-window events
-- Panel window MUST be listed in `capabilities/default.json` windows array
-- `useState` init from prop only runs once — use `useEffect` to sync with async data
+9. **`XInitThreads()` must be called in main.rs before anything else on Linux.**
+   Use `#[link(name = "X11")]` to link against libX11.
 
-### File Locations
-- Config: `~/.config/com.coolview.app/config.toml`
-- History CSV: `~/.local/share/com.coolview.app/history.csv`  
-- Warning log: `~/.local/share/com.coolview.app/logs/warnings.log` (path may vary)
+10. **Panel uses hide()/show() NOT close()/build()** — panel created on demand,
+    hidden via hide_panel command, never destroyed until app exits.
+
+11. **Always update DEVELOPMENT_LOG.md and GHOST_BUG_DEBUG_LOG.md before any
+    CC session.** These are the source of truth.
 
 ---
 
-## Session Update — X11 Crash Investigation
+## CRITICAL FIX — Double Window & GTK Freeze Counter (v0.1.5)
 
-### startDragging hypothesis DISPROVED
-Removed `startDragging()` from all components. Crash persisted immediately
-(serial 2745) on first Settings click. Not the cause.
+### The Problem
+Every launch produced two HUD windows. The `gdk_window_thaw_toplevel_updates`
+warning fired on every startup. After extended use, clicking Settings caused
+an X11 `BadImplementation` crash.
 
-### Current crash understanding
-`gdk_window_thaw_toplevel_updates` warning fires at STARTUP before any user
-interaction. Crash follows ~11s later on first panel open. Freeze counter is
-corrupted during app initialization, not user interaction.
+### Root Cause (final, confirmed)
+`position_window()` was being called from a deferred `thread::spawn` +
+`run_on_main_thread` block after startup. This call chain:
+`position_window()` → `current_monitor()` + `outer_size()` + `set_position()`
+touches GTK's internal resize/layout machinery. Even with `run_on_main_thread`,
+this was still triggering `gdk_window_thaw_toplevel_updates` — corrupting the
+GDK freeze counter to -1.
 
-### What CC fixed successfully this session
-- **Panel switching crash:** `existing.eval("window.location.hash = ...")` 
-  instead of close+reopen. Navigates in-place, no GTK window lifecycle ops.
-- **HUD ghost:** `background: "rgba(0,0,0,0.001)"` on content container forces
-  WebKit to execute background paint step, zeroing ARGB surface before text draw.
-  Ghost now clears within ~30s instead of 90-120s. Still present on first render.
+The corrupted counter caused Tauri/GTK to create a ghost second window as a
+side effect. This ghost window loaded `index.html` without a hash, defaulted
+to HUD view, and appeared as a second HUD on screen for 30-120 seconds.
 
-### Standing rule established
-**Always update DEVELOPMENT_LOG.md and GHOST_BUG_DEBUG_LOG.md before any CC session.**
-These are the source of truth. CC reads them first.
+### What Was Tried (all failed)
+- Wrapping `set_always_on_top` in `run_on_main_thread` — still corrupted
+- Wrapping `position_window` in `run_on_main_thread` — still corrupted
+- Increasing delay from 100ms → 200ms → 500ms — still corrupted
+- Removing `alwaysOnTop` from tauri.conf.json — reduced but ghost persisted
+- Removing `set_always_on_top` from deferred block — still corrupted
+- Pre-creating panel window hidden at startup — `visible(false)` ignored by GTK
+- Setting `transparent: false` — fixed double window but created white rectangle
+- Positioning panel off-screen at -1000,-1000 — wrong approach
 
-### Next investigation targets
-Startup sequence in `lib.rs setup()` — one of these is corrupting freeze counter:
-1. `TrayIconBuilder::build()`
-2. `position_window()` → `set_position()`
-3. `window.set_always_on_top()`
-4. `transparent: true` + `always_on_top: true` combination in tauri.conf.json
+### The Fix That Worked
+**Remove the deferred block entirely. Set initial position statically in
+tauri.conf.json.**
+
+```json
+{
+  "x": 1400,
+  "y": 12,
+  "alwaysOnTop": true,
+  "transparent": true
+}
+```
+
+### Why This Works
+- `tauri.conf.json` window properties are applied by the OS window manager
+  BEFORE GTK initializes the window. No GTK calls are made at runtime.
+- The freeze counter is never touched during initialization.
+- No `position_window()`, no `set_always_on_top()`, no GTK operations at startup.
+- `alwaysOnTop: true` in tauri.conf.json uses the native X11 `_NET_WM_STATE_ABOVE`
+  hint set during `XCreateWindow` — this doesn't go through GTK's freeze/thaw cycle.
+
+### Why the Deferred Block Was Fundamentally Flawed
+`run_on_main_thread` posts to the GTK event loop, but `position_window` calls
+`current_monitor()` and `outer_size()` which read window geometry. On X11,
+reading geometry triggers a round-trip to the X server which causes layout
+operations that touch the freeze counter — even on the main thread.
+
+Setting geometry via tauri.conf.json bypasses this entirely because it happens
+at the Xlib/X11 level during `XCreateWindow`, before GTK's freeze/thaw machinery
+is involved.
+
+### Side Effects — Positive
+- No `gdk_window_thaw_toplevel_updates` warning at startup
+- No ghost second window
+- HUD can be positioned much closer to screen edges
+- Clean transparent window initialization
+
+### Known Limitation
+Initial position is hardcoded to x=1400, y=12 (top right). Users can drag the
+HUD anywhere, but on next launch it returns to x=1400, y=12. Position persistence
+would require modifying tauri.conf.json before launch — not currently implemented.
 
 ---
 
-## CRASH FIXED — position_window() deferred to post-GTK-event-loop
-
-### Root cause (confirmed by CC)
-`position_window()` + `set_always_on_top()` called in `setup()` before GTK
-event loop starts. Corrupts GDK freeze counter to -1. First panel open
-triggers `ChangeWindowAttributes` which hits the corrupted state → crash.
-
-### Fix applied
-Moved window initialization into `thread::spawn` → `run_on_main_thread` with
-100ms delay. This guarantees the operations run AFTER the GTK event loop has
-started and the window is fully realized.
-
-Removed redundant `set_always_on_top()` call from setup() since
-tauri.conf.json already sets `alwaysOnTop: true`.
-
-### Status
-Fix implemented. Testing required:
-- [ ] No crash after 3+ minutes of Settings/History clicking
-- [ ] HUD positions correctly on startup
-- [ ] Always-on-top still works
-- [ ] Ghost clears within 30s
-
----
-
-## CRITICAL RULE ESTABLISHED — GTK Thread Safety
+## GTK Thread Safety Rule
 
 **Any Tauri window operation called from a background thread or command handler
 MUST be wrapped in `app.run_on_main_thread(|| { ... })`.**
@@ -297,14 +296,9 @@ MUST be wrapped in `app.run_on_main_thread(|| { ... })`.**
 This includes: `set_always_on_top`, `set_focus`, `set_position`,
 `WebviewWindowBuilder::build()`, and any other GTK-touching operation.
 
-Violating this causes incremental GDK state corruption that manifests as
-`BadImplementation` X11 crash after ~2 minutes of use.
+Violating this causes incremental GDK state corruption → `BadImplementation`
+X11 crash after ~2 minutes of use.
 
-**Fixed in lib.rs:**
-- `set_config` command: all window ops now via `run_on_main_thread`
-- Poll loop warning/clear: all window ops now via `run_on_main_thread`
-- Startup: already fixed (deferred via thread::spawn + run_on_main_thread)
-
-**Also fixed:**
-- `startDragging()` restored to HUD.tsx
-- TypeScript: `currentMonitor()` is standalone from `@tauri-apps/api/window`
+**EXCEPTION: Do not call position_window() or geometry-reading functions
+(current_monitor, outer_size) even from run_on_main_thread at startup.
+Use tauri.conf.json instead.**
