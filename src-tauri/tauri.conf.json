@@ -1,6 +1,6 @@
 {
   "productName": "CoolView",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "com.coolview.app",
   "build": {
     "frontendDist": "../dist",
@@ -18,13 +18,15 @@
         "resizable": false,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
         "shadow": false,
         "visible": true
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -36,6 +38,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "linux": { "deb": { "depends": [] } }
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
   }
 }
