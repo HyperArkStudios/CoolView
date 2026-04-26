@@ -21,10 +21,6 @@ sysinfo = "0.32"
 chrono = { version = "0.4", features = ["clock"] }
 anyhow = "1"
 
-
-[target."cfg(target_os = \"linux\")".dependencies]
-
-
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["shape"] }
 gdkx11 = "0.18"
