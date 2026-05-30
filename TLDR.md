@@ -37,6 +37,8 @@ Ko-fi: ko-fi.com/hyperarkstudios
 - System tray (show/hide, quit)
 - HUD drag via startDragging()
 - Config persists to ~/.config/com.coolview.app/config.toml
+- HUD starts hidden (opacity 0) until position is calculated, then fades in — no centre-flash on startup
+- HUD position on startup respects user's saved position preference (top-right/left, bottom-right/left)
 
 ## CRITICAL RULES — DO NOT VIOLATE
 1. ALL GTK window operations from background threads MUST use app.run_on_main_thread()
@@ -51,38 +53,28 @@ Ko-fi: ko-fi.com/hyperarkstudios
 8. XInitThreads() must be called in main.rs before anything else on Linux
 9. Panel uses hide()/show() NOT close()/build() — pre-created at startup, never destroyed
 10. Always update DEVELOPMENT_LOG.md and GHOST_BUG_DEBUG_LOG.md before any CC session
+11. Do NOT use visible:false in tauri.conf.json — corrupts GTK freeze counter on X11, window never appears
+12. Do NOT call position_window(), set_position(), current_monitor(), or outer_size() from Rust at startup
+    All HUD positioning must be done from the frontend (App.tsx initHUD) after window is realized
+13. HUD startup positioning: fetch config first via invoke("get_config"), THEN calculate position and
+    call setPosition — never depend on React config state which starts as DEFAULT_CONFIG
 
 ## Current Open Bugs
 
-### 1. Panel not reopening after user closes it (BLOCKER)
-Pre-created panel window is destroyed when user clicks ✕ (close()).
-After that, open_panel can't find it and buttons do nothing.
-Fix: change all close() calls in Settings/History to invoke a Rust command
-"hide_panel" which calls window.hide() instead of window.close().
-
-### 2. Panel shows OS title bar (cosmetic)
-decorations(false) was removed from panel window during crash debugging.
-Needs to go back on the pre-created window in setup(), not at runtime.
-
-### 3. HUD ghost (partially fixed)
-background: "rgba(0,0,0,0.001)" + will-change:transform + translateZ(0)
+### 1. HUD ghost (partially fixed)
+background: rgb(14,14,20) + will-change:transform + translateZ(0)
 on content container helps. Clears within ~30s. Still on first render.
 
-### 4. Excessive whitespace in panel window (cosmetic)
+### 2. Excessive whitespace in panel window (cosmetic)
 Panel window is too large for content. Needs size tuning.
 
 ## What Was Just Tried (don't repeat these)
-- XInitThreads() in main.rs with #[link(name = "X11")] — compiled, helped
-- Pre-created panel window in setup() via run_on_main_thread — correct approach
-- Panel navigates via eval() instead of close/reopen — correct approach
-- All GTK ops wrapped in run_on_main_thread — correct and necessary
-- decorations(false) removed from panel — was attempted fix, should go back
-- on_window_event — ALWAYS CRASHES, never use
-- set_background_color — causes rectangles, never use
-- sleep() as synchronization — insufficient, causes race conditions
+- visible:false in tauri.conf.json — corrupts GTK freeze counter, window never appears
+- win.show() after setPosition with visible:false — same GTK corruption
+- Two separate effects for get_config and positionHUD — race condition, wrong position on startup
+- Hardcoding x/y in tauri.conf.json — breaks on non-1920x1080 screens
 
 ## Immediate Next Steps
-1. Add hide_panel Rust command: gets "panel" window, calls .hide()
-2. Change onClose in Settings.tsx and History.tsx to invoke("hide_panel")
-3. Restore decorations(false) on pre-created panel in setup()
-4. Test 5+ minutes — if stable, commit + tag v0.1.3-alpha
+- Monitor stability of v0.2.0 in daily use
+- Address panel whitespace (cosmetic)
+- Address HUD ghost on first render

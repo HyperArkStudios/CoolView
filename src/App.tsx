@@ -27,29 +27,77 @@ export default function App() {
   const [isWarning,setIsWarning]= useState(false);
   const [isBottom, setIsBottom] = useState(false);
 
+  // For panel windows, just load config normally.
   useEffect(() => {
+    if (view === "hud") return;
     invoke<Config>("get_config").then(setConfig).catch(console.error);
   }, []);
 
-  // Position HUD in top-right on first launch, accounting for screen size
+  // For HUD: load config first, then position — sequential, no race condition.
+  // A separate effect handles re-positioning when the user changes position in Settings.
+  const [hudReady, setHudReady] = useState(false);
+
   useEffect(() => {
     if (view !== "hud") return;
-    async function positionHUD() {
+    async function initHUD() {
       try {
-        const { getCurrentWindow, currentMonitor } = await import("@tauri-apps/api/window");
+        const { PhysicalPosition } = await import("@tauri-apps/api/dpi");
+        // Fetch real config before positioning — avoids jumping to DEFAULT_CONFIG position first
+        const cfg = await invoke<Config>("get_config");
+        setConfig(cfg);
+
+        const win = getCurrentWindow();
+        const monitor = await currentMonitor();
+        if (!monitor) return;
+        const winSize = await win.outerSize();
+        const pad = Math.round(12 * monitor.scaleFactor);
+        const sw = monitor.size.width;
+        const sh = monitor.size.height;
+        const ww = winSize.width;
+        const wh = winSize.height;
+
+        let x: number, y: number;
+        switch (cfg.display.position) {
+          case "top-left":     x = pad;           y = pad;           break;
+          case "bottom-right": x = sw - ww - pad; y = sh - wh - pad; break;
+          case "bottom-left":  x = pad;           y = sh - wh - pad; break;
+          default:             x = sw - ww - pad; y = pad;           break; // top-right
+        }
+        await win.setPosition(new PhysicalPosition(x, y));
+        setHudReady(true);
+      } catch (_) {}
+    }
+    initHUD();
+  }, []);
+
+  // Re-position when user changes position in Settings (not on first load — initHUD handles that)
+  useEffect(() => {
+    if (view !== "hud" || !hudReady) return;
+    async function reposition() {
+      try {
         const { PhysicalPosition } = await import("@tauri-apps/api/dpi");
         const win = getCurrentWindow();
         const monitor = await currentMonitor();
         if (!monitor) return;
-        const size = await win.outerSize();
+        const winSize = await win.outerSize();
         const pad = Math.round(12 * monitor.scaleFactor);
-        const x = monitor.size.width - size.width - pad;
-        const y = pad;
+        const sw = monitor.size.width;
+        const sh = monitor.size.height;
+        const ww = winSize.width;
+        const wh = winSize.height;
+
+        let x: number, y: number;
+        switch (config.display.position) {
+          case "top-left":     x = pad;           y = pad;           break;
+          case "bottom-right": x = sw - ww - pad; y = sh - wh - pad; break;
+          case "bottom-left":  x = pad;           y = sh - wh - pad; break;
+          default:             x = sw - ww - pad; y = pad;           break;
+        }
         await win.setPosition(new PhysicalPosition(x, y));
       } catch (_) {}
     }
-    positionHUD();
-  }, []);
+    reposition();
+  }, [config.display.position, hudReady]);
 
   useEffect(() => {
     async function checkPos() {
@@ -96,6 +144,7 @@ export default function App() {
         config={config}
         isWarning={isWarning}
         isBottom={isBottom}
+        ready={hudReady}
         onOpenSettings={() => invoke("open_panel", { label: "settings" })}
         onOpenHistory={() => invoke("open_panel", { label: "history" })}
       />

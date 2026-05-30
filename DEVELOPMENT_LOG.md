@@ -151,3 +151,58 @@ on X11.
 When user drags HUD to new position, XShape does NOT need to be reapplied
 because XShape coordinates are relative to the window, not the screen.
 The input region stays correct after any window move.
+
+---
+
+## FIX — HUD Startup Position (v0.2.0)
+
+### The Problem
+HUD always appeared in the centre of the screen on startup, regardless of the
+user's saved position preference (top-right, top-left, bottom-right, bottom-left).
+
+### Root Cause
+Two independent async effects were racing each other in App.tsx:
+1. `get_config` invoke — loaded real config asynchronously
+2. `positionHUD` effect — depended on `config.display.position` React state
+
+Since React state initialises from `DEFAULT_CONFIG` (position: "top-right"),
+`positionHUD` fired immediately on mount with the default value BEFORE
+`get_config` resolved. The window would jump to the default position first,
+then potentially jump again when real config loaded — or worse, sit in the
+OS default centre position until both effects settled.
+
+### What Was Tried and Failed
+- `visible: false` in tauri.conf.json + `win.show()` after setPosition —
+  corrupts GTK freeze counter on X11, window never appears at all.
+  Same root cause as the double-window bug (v0.1.5). NEVER USE visible:false.
+- Single positionHUD effect depending on `config.display.position` —
+  still races because config state starts as DEFAULT_CONFIG.
+
+### The Fix
+Merged config loading and positioning into one sequential async function
+`initHUD()` in App.tsx, called once on mount with empty deps `[]`:
+
+```ts
+async function initHUD() {
+  const cfg = await invoke<Config>("get_config");  // fetch real config first
+  setConfig(cfg);
+  // ... calculate position from cfg.display.position ...
+  await win.setPosition(new PhysicalPosition(x, y));
+  setHudReady(true);
+}
+```
+
+A separate `reposition()` effect with `[config.display.position, hudReady]`
+deps handles re-positioning when the user changes position in Settings.
+The `hudReady` flag prevents this effect from firing on first load.
+
+### HUD Fade-in
+Added `ready` prop to HUD component. Outermost div has `opacity: ready ? 1 : 0`
+with `transition: "opacity 0.15s ease"`. The window is visible from the OS
+perspective but renders transparent until `initHUD` completes and sets
+`hudReady(true)`. This prevents any flash of content at the wrong position.
+
+### RULE ESTABLISHED
+Never use two separate effects for config loading and position calculation.
+Always fetch config INSIDE the positioning function, in sequence, so position
+is calculated from the real saved config — not from DEFAULT_CONFIG.

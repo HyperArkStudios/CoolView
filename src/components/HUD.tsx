@@ -10,6 +10,7 @@ interface HUDProps {
   config: Config;
   isWarning: boolean;
   isBottom: boolean;
+  ready: boolean;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
 }
@@ -41,7 +42,7 @@ function tempColor(c: number | null | undefined): string {
   return "#ffffff";
 }
 
-export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpenHistory }: HUDProps) {
+export function HUD({ temps, config, isWarning, isBottom, ready, onOpenSettings, onOpenHistory }: HUDProps) {
   const [hovered, setHovered] = useState(false);
   const [panelCooldown, setPanelCooldown] = useState(false);
 
@@ -109,7 +110,8 @@ export function HUD({ temps, config, isWarning, isBottom, onOpenSettings, onOpen
 
   return (
     <div
-      style={{ position: "absolute", inset: 0, background: "transparent", pointerEvents: "none", overflow: "hidden" }}
+      style={{ position: "absolute", inset: 0, background: "transparent", pointerEvents: "none", overflow: "hidden",
+        opacity: ready ? 1 : 0, transition: "opacity 0.15s ease" }}
     >
       {/* Temp content — anchored top-right or bottom-right */}
       <div
